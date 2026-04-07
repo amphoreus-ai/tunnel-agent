@@ -52,7 +52,7 @@ Traffic is split at the iptables level: only the resolved IPs for the configured
 - **Docker Desktop** (macOS) with Compose v2
 - **Astrill VPN** with SOCKS5 proxy enabled (see setup below)
 - **Python 3.11+**
-- **API key** for your chosen agent (set in `.env` or as an environment variable)
+- **Auth** for your chosen agent — Claude Code subscription (via `~/.claude/`), API key, or both
 
 ---
 
@@ -82,21 +82,48 @@ pip install -e ./tunnel-agent
 
 ## Quick Start
 
+### Option A: Use your Claude Code subscription (recommended)
+
+If you have a Claude Code subscription, your auth tokens are in `~/.claude/` on your Mac. tunnel-agent mounts this directory into the container automatically — no API key needed.
+
 ```bash
-# Set your API key
-export ANTHROPIC_API_KEY=sk-ant-...
+# First time only: log in on your Mac (turn VPN on briefly)
+claude login
+# Turn VPN off, enable Astrill SOCKS5 proxy instead
 
-# Or create a .env in your project directory
-echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
-
-# Run Claude Code on a task
+# Run Claude Code — uses your subscription via mounted ~/.claude/
 tunnel-agent run --agent claude "fix the auth bug in server.py"
 
 # Interactive mode — opens a full TTY session
 tunnel-agent run --agent claude
+```
 
-# Run a different agent
+If your auth tokens are stored in macOS Keychain only (not `~/.claude/`), you can log in inside the container on first run — the proxy routes the OAuth flow through Astrill:
+
+```bash
+# Start interactive, then run `claude login` inside
+tunnel-agent run --agent claude
+# Claude will print a URL → open it in your Mac's browser → authorize
+# Token saves to the mounted ~/.claude/ and persists across restarts
+```
+
+### Option B: Use an API key
+
+```bash
+# Set your API key in .env
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env
+
+# Or export it
+export ANTHROPIC_API_KEY=sk-ant-...
+
+tunnel-agent run --agent claude "fix the auth bug in server.py"
+```
+
+### Other agents
+
+```bash
 tunnel-agent run --agent codex "add unit tests for the API module"
+tunnel-agent run --agent aider "refactor the database layer"
 ```
 
 ---
@@ -185,18 +212,18 @@ When `proxy_ips` is set for a domain, those IPs are used instead of resolving in
 
 ## Supported Agents
 
-| Agent | Name flag | API key env var | Install method |
-|-------|-----------|-----------------|----------------|
-| Claude Code | `claude` | `ANTHROPIC_API_KEY` | npm |
+| Agent | Name flag | Auth | Install method |
+|-------|-----------|------|----------------|
+| Claude Code | `claude` | Subscription (`~/.claude/`) or `ANTHROPIC_API_KEY` | npm |
 | Codex | `codex` | `OPENAI_API_KEY` | npm |
-| Aider | `aider` | `OPENAI_API_KEY` | pip |
+| Aider | `aider` | `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` | pip |
 | Goose | `goose` | `OPENAI_API_KEY` | binary |
 | Cline | `cline` | `ANTHROPIC_API_KEY` | npm |
 | Gemini CLI | `gemini` | `GEMINI_API_KEY` | npm |
-| Amp | `amp` | `ANTHROPIC_API_KEY` | npm |
+| Amp | `amp` | `AMP_API_KEY` | npm |
 | OpenCode | `opencode` | `ANTHROPIC_API_KEY` | npm |
 
-Set the appropriate API key in your `.env` file or as an environment variable before running.
+For Claude Code, your subscription tokens in `~/.claude/` are mounted automatically. For other agents, set the API key in `.env` or as an environment variable.
 
 ---
 
@@ -253,7 +280,7 @@ iptables rules operate at the kernel level before packets leave the container. T
 
 ## Limitations (v1)
 
-**API key auth only.** `claude login` (OAuth browser flow) does not work in a headless container. You must use `ANTHROPIC_API_KEY` (or the equivalent for other agents). Users on a Claude subscription without an API key cannot use tunnel-agent today.
+**Claude subscription auth depends on `~/.claude/` contents.** If your OAuth tokens are stored only in macOS Keychain (not in `~/.claude/`), you'll need to run `claude login` inside the container once. The container's proxy routing makes this possible — Claude prints a URL you open in your browser.
 
 **No DNS refresh during sessions.** AI API IPs are resolved once when the container starts. If an IP changes during a long-running session, proxy routing for that endpoint will stop working. Restart the container to re-resolve. (A cron-based refresh is planned for v2.)
 
@@ -287,4 +314,4 @@ See the [isolated-agent README](../isolated-agent/README.md) for the full `Agent
 - Python 3.11+
 - Docker Desktop (macOS) with Compose v2
 - Astrill VPN with SOCKS5 enabled and bound to `0.0.0.0`
-- API key for your chosen agent
+- Claude Code subscription (tokens in `~/.claude/`) or API key for your chosen agent
