@@ -22,7 +22,7 @@ tunnel-agent runs the agent inside a single Docker container where only traffic 
 ┌──────────────────────────────────────────────────────────────────┐
 │  macOS Host                                                       │
 │                                                                   │
-│  Astrill VPN → SOCKS5 proxy listening on 0.0.0.0:1080           │
+│  Astrill VPN → SOCKS5 proxy listening on 0.0.0.0:8080           │
 │                                                                   │
 │  ┌────────────────────────────────────────────────────────────┐  │
 │  │  Docker container (Debian)                                  │  │
@@ -64,7 +64,7 @@ This step is critical. The Docker container reaches your host's SOCKS5 proxy via
 2. Go to **Settings** → **Proxy**
 3. Enable **SOCKS5 proxy**
 4. Set the **bind address** to `0.0.0.0` (the default `127.0.0.1` will not be reachable from Docker)
-5. Note the port — the default is **1080**
+5. Note the port — the default is **8080**
 
 If Astrill is only listening on `127.0.0.1`, the container cannot reach it and the proxy will silently not work (agent can't reach AI APIs).
 
@@ -142,7 +142,7 @@ Launch an agent in a tunnel container. If `TASK` is omitted, starts in interacti
 |------|---------|-------------|
 | `--agent NAME` | `claude` | Agent to run. See `tunnel-agent agents` for valid names. |
 | `--workspace PATH` | `.` (current dir) | Directory to mount as `/workspace` in the container. |
-| `--proxy-port PORT` | `1080` | Override the SOCKS5 proxy port for this run. |
+| `--proxy-port PORT` | `8080` | Override the SOCKS5 proxy port for this run. |
 | `--proxy-host HOST` | `host.docker.internal` | Override the SOCKS5 proxy host. |
 | `--domains LIST` | — | Additional domains to proxy (comma-separated). |
 | `--verbose` | — | Enable debug logging. |
@@ -179,7 +179,7 @@ tunnel-agent reads `~/.tunnel-agent/config.yaml` on startup. If the file does no
 ```yaml
 proxy:
   host: host.docker.internal   # SOCKS5 proxy host (Docker's name for your Mac)
-  port: 1080                   # Astrill's SOCKS5 port
+  port: 8080                   # Astrill's SOCKS5 port
   domains:
     - api.anthropic.com
     - api.openai.com

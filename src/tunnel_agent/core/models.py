@@ -9,7 +9,7 @@ class ProxyConfig:
     """Configuration for the SOCKS5 proxy used to route AI API traffic."""
 
     host: str = "host.docker.internal"
-    port: int = 1080
+    port: int = 8080
     domains: list[str] = field(default_factory=lambda: [
         "api.anthropic.com",
         "api.openai.com",
