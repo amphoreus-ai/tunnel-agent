@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tunnel-agent"
+version = "0.1.0"
+description = "Run AI coding agents with selective network routing through SOCKS5 proxy"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+    "click>=8.0",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+    # Install isolated-agent alongside this package: pip install -e ../isolated-agent
+    "isolated-agent",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[project.scripts]
+tunnel-agent = "tunnel_agent.cli.main:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["tunnel_agent*"]
