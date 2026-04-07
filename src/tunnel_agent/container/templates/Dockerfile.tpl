@@ -1,0 +1,30 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    redsocks \
+    iptables \
+    dnsutils \
+    gosu \
+    openssh-client \
+    git \
+    curl \
+    ca-certificates \
+    ${system_packages} \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ${cli_install_cmd}
+
+RUN groupadd -r ${run_as_user} \
+    && useradd -r -g ${run_as_user} -m -d ${home_dir} -s /bin/bash ${run_as_user} \
+    && mkdir -p /workspace \
+    && chown ${run_as_user}:${run_as_user} /workspace
+
+${env_vars}
+
+COPY entrypoint.sh /entrypoint.sh
+COPY redsocks.conf /etc/redsocks.conf
+
+RUN chmod +x /entrypoint.sh
+
+WORKDIR /workspace
+ENTRYPOINT ["/entrypoint.sh"]
