@@ -1,9 +1,9 @@
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    redsocks \
+    wireguard-tools \
+    iproute2 \
     iptables \
-    dnsutils \
     gosu \
     openssh-client \
     git \
@@ -22,9 +22,9 @@ RUN groupadd -r ${run_as_user} \
 ${env_vars}
 
 COPY entrypoint.sh /entrypoint.sh
-COPY redsocks.conf /etc/redsocks.conf
+COPY wg0.conf /etc/wireguard/wg0.conf
 
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh && chmod 600 /etc/wireguard/wg0.conf
 
 WORKDIR /workspace
 ENTRYPOINT ["/entrypoint.sh"]
