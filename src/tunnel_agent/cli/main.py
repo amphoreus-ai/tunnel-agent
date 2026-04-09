@@ -67,23 +67,19 @@ def cli(ctx: click.Context) -> None:
 @click.option("--agent", "-a", default=None, help="Agent to use (default: from config)")
 @click.option("--workspace", "-w", default=".", help="Workspace directory (default: current dir)")
 @click.option("--wg-config", default=None, type=click.Path(), help="Override WireGuard config file path")
+@click.option("--agent-args", default=None, help="Extra args for agent CLI (e.g. '--dangerously-skip-permissions')")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
-@click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 def run(
     task: str | None,
     agent: str | None,
     workspace: str,
     wg_config: str | None,
+    agent_args: str | None,
     verbose: bool,
-    extra_args: tuple[str, ...],
 ) -> None:
     """Run an agent in a tunnel container.
 
     TASK is optional. Omit for interactive mode.
-
-    Extra arguments after -- are passed directly to the agent CLI:
-
-        tunnel-agent run --agent claude -- --dangerously-skip-permissions
     """
     if verbose:
         logging.basicConfig(level=logging.DEBUG)
@@ -128,8 +124,8 @@ def run(
         Panel(info_lines, title="[bold blue]tunnel-agent[/bold blue]", border_style="blue")
     )
 
-    # Store extra args on the agent instance for run_agent to pick up
-    agent_instance.extra_args = list(extra_args)
+    extra = agent_args.split() if agent_args else []
+    agent_instance.extra_args = extra
 
     if task is not None:
         session = Session(agent=agent_instance, backend=backend, workspace=workspace)
@@ -168,7 +164,7 @@ def run(
             )
             sys.exit(1)
     else:
-        _run_interactive(agent_instance, backend, workspace, list(extra_args))
+        _run_interactive(agent_instance, backend, workspace, extra)
 
 
 def _run_interactive(agent: Agent, backend: TunnelBackend, workspace: str, extra_args: list[str] | None = None) -> None:
@@ -213,6 +209,7 @@ def _run_interactive(agent: Agent, backend: TunnelBackend, workspace: str, extra
         else:
             compose_cmd.append("-T")
 
+        compose_cmd.extend(["--user", "agent"])
         compose_cmd.append("tunnel")
         compose_cmd.append(agent_binary)
         if extra_args:

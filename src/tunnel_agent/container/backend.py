@@ -138,6 +138,7 @@ class TunnelBackend(Backend):
         else:
             compose_cmd.append("-T")
 
+        compose_cmd.extend(["--user", "agent"])
         compose_cmd.append("tunnel")
         compose_cmd.extend(cmd)
 
