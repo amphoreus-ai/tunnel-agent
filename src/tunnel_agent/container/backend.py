@@ -1,4 +1,4 @@
-"""Tunnel backend — single container with selective proxy routing."""
+"""Tunnel backend — single container with WireGuard VPN."""
 from __future__ import annotations
 
 import logging
@@ -27,11 +27,8 @@ class DockerNotFoundError(Exception):
 
 
 class TunnelBackend(Backend):
-    """Backend that runs an agent in a single container with selective
-    SOCKS5 proxy routing via redsocks + iptables.
-
-    AI API traffic is routed through the proxy while all other traffic
-    (SSH, git to local servers) goes direct.
+    """Backend that runs an agent in a single container with a WireGuard
+    VPN tunnel to an external VPS for unrestricted internet access.
     """
 
     def __init__(self, config: TunnelConfig | None = None):
@@ -52,6 +49,14 @@ class TunnelBackend(Backend):
         build_dir = Path(tempfile.mkdtemp(prefix="tunnel-agent-"))
 
         try:
+            # Validate WireGuard config exists before rendering
+            wg_path = self.config.wireguard.config_path.expanduser()
+            if not wg_path.exists():
+                raise FileNotFoundError(
+                    f"WireGuard config not found at {wg_path}. "
+                    "Run the WireGuard setup script on your VPS first."
+                )
+
             # Find .env file
             env_file = self._find_env_file(workspace_path)
 
@@ -97,11 +102,11 @@ class TunnelBackend(Backend):
             shutil.rmtree(sandbox.build_dir, ignore_errors=True)
 
     def healthcheck(self, sandbox: Sandbox) -> bool:
-        """Verify the proxy is working by curling an AI API endpoint."""
+        """Verify the WireGuard tunnel is working by curling an AI API endpoint."""
         try:
             result = self._docker_compose_exec(
                 sandbox,
-                ["curl", "-s", "--max-time", "5", "https://api.anthropic.com"],
+                ["curl", "-s", "--max-time", "10", "https://api.anthropic.com"],
             )
             return result.exit_code == 0
         except Exception as exc:

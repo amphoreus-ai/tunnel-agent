@@ -36,9 +36,17 @@ def render_templates(
     using string.Template, and writes the rendered output to build_dir.
     """
     shim = agent.get_shim_config()
-    proxy = config.proxy
 
     project_name = build_dir.name
+
+    # --- Read WireGuard config ---
+    wg_path = config.wireguard.config_path.expanduser()
+    if not wg_path.exists():
+        raise FileNotFoundError(
+            f"WireGuard config not found at {wg_path}. "
+            "Run the WireGuard setup script on your VPS first."
+        )
+    wg_config_content = wg_path.read_text()
 
     # --- Resolve env_file path ---
     if env_file is None:
@@ -70,14 +78,6 @@ def render_templates(
         extra_mount_lines.append(f"- {host_path}:{container_path}")
     extra_mounts = "\n      ".join(extra_mount_lines)
 
-    # --- Proxy domain and IP strings ---
-    proxy_domains = " ".join(proxy.domains)
-
-    manual_ips: list[str] = []
-    for ips in proxy.proxy_ips.values():
-        manual_ips.extend(ips)
-    proxy_ips_manual = " ".join(manual_ips)
-
     # --- Environment block for Dockerfile ---
     env_str = ""
     if shim.env_vars:
@@ -96,11 +96,8 @@ def render_templates(
         "env_vars": env_str,
         "home_dir": home_dir,
         "run_as_user": user,
-        # Proxy
-        "proxy_host": proxy.host,
-        "proxy_port": str(proxy.port),
-        "proxy_domains": proxy_domains,
-        "proxy_ips_manual": proxy_ips_manual,
+        # WireGuard
+        "wg_config_content": wg_config_content,
         # Mounts
         "ssh_mount": ssh_mount,
         "claude_mount": claude_mount,
@@ -114,7 +111,7 @@ def render_templates(
         "Dockerfile.tpl": "Dockerfile",
         "docker-compose.yml.tpl": "docker-compose.yml",
         "entrypoint.sh.tpl": "entrypoint.sh",
-        "redsocks.conf.tpl": "redsocks.conf",
+        "wg0.conf.tpl": "wg0.conf",
     }
 
     for tpl_name, output_name in templates.items():
