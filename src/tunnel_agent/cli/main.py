@@ -68,16 +68,22 @@ def cli(ctx: click.Context) -> None:
 @click.option("--workspace", "-w", default=".", help="Workspace directory (default: current dir)")
 @click.option("--wg-config", default=None, type=click.Path(), help="Override WireGuard config file path")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@click.argument("extra_args", nargs=-1, type=click.UNPROCESSED)
 def run(
     task: str | None,
     agent: str | None,
     workspace: str,
     wg_config: str | None,
     verbose: bool,
+    extra_args: tuple[str, ...],
 ) -> None:
     """Run an agent in a tunnel container.
 
     TASK is optional. Omit for interactive mode.
+
+    Extra arguments after -- are passed directly to the agent CLI:
+
+        tunnel-agent run --agent claude -- --dangerously-skip-permissions
     """
     if verbose:
         logging.basicConfig(level=logging.DEBUG)
@@ -122,6 +128,9 @@ def run(
         Panel(info_lines, title="[bold blue]tunnel-agent[/bold blue]", border_style="blue")
     )
 
+    # Store extra args on the agent instance for run_agent to pick up
+    agent_instance.extra_args = list(extra_args)
+
     if task is not None:
         session = Session(agent=agent_instance, backend=backend, workspace=workspace)
         result = session.run(task=task)
@@ -159,10 +168,10 @@ def run(
             )
             sys.exit(1)
     else:
-        _run_interactive(agent_instance, backend, workspace)
+        _run_interactive(agent_instance, backend, workspace, list(extra_args))
 
 
-def _run_interactive(agent: Agent, backend: TunnelBackend, workspace: str) -> None:
+def _run_interactive(agent: Agent, backend: TunnelBackend, workspace: str, extra_args: list[str] | None = None) -> None:
     """Run agent in interactive mode (no task string).
 
     Bypasses Session.run() since Session always passes a task to run_agent().
@@ -206,6 +215,8 @@ def _run_interactive(agent: Agent, backend: TunnelBackend, workspace: str) -> No
 
         compose_cmd.append("tunnel")
         compose_cmd.append(agent_binary)
+        if extra_args:
+            compose_cmd.extend(extra_args)
 
         try:
             subprocess.run(compose_cmd, cwd=str(sandbox.build_dir))
