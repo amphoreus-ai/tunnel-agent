@@ -5,24 +5,17 @@ from pathlib import Path
 
 
 @dataclass
-class ProxyConfig:
-    """Configuration for the SOCKS5 proxy used to route AI API traffic."""
+class WireGuardConfig:
+    """Configuration for WireGuard VPN tunnel."""
 
-    host: str = "host.docker.internal"
-    port: int = 8080
-    domains: list[str] = field(default_factory=lambda: [
-        "api.anthropic.com",
-        "api.openai.com",
-        "generativelanguage.googleapis.com",
-    ])
-    proxy_ips: dict[str, list[str]] = field(default_factory=dict)
+    config_path: Path = field(default_factory=lambda: Path.home() / ".tunnel-agent" / "wg0.conf")
 
 
 @dataclass
 class TunnelConfig:
     """Top-level configuration for tunnel-agent."""
 
-    proxy: ProxyConfig = field(default_factory=ProxyConfig)
+    wireguard: WireGuardConfig = field(default_factory=WireGuardConfig)
     default_agent: str = "claude"
     mount_ssh: bool = True
     mount_claude: bool = True

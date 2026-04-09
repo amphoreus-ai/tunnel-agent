@@ -1,33 +1,39 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from tunnel_agent.core.models import ProxyConfig, TunnelConfig
+from tunnel_agent.core.models import WireGuardConfig, TunnelConfig
 
 
 CONFIG_DIR = Path.home() / ".tunnel-agent"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 
-def _merge_proxy(defaults: ProxyConfig, data: dict[str, Any]) -> ProxyConfig:
-    return ProxyConfig(
-        host=data.get("host", defaults.host),
-        port=data.get("port", defaults.port),
-        domains=data.get("domains", defaults.domains),
-        proxy_ips=data.get("proxy_ips", defaults.proxy_ips),
+def _merge_wireguard(defaults: WireGuardConfig, data: dict[str, Any]) -> WireGuardConfig:
+    config_path = data.get("config_path", defaults.config_path)
+    return WireGuardConfig(
+        config_path=Path(config_path),
     )
 
 
 def _merge_config(defaults: TunnelConfig, data: dict[str, Any]) -> TunnelConfig:
-    proxy = defaults.proxy
-    if "proxy" in data and isinstance(data["proxy"], dict):
-        proxy = _merge_proxy(defaults.proxy, data["proxy"])
+    if "proxy" in data:
+        print(
+            "WARNING: 'proxy:' key in config is deprecated and has no effect. "
+            "Use 'wireguard:' instead.",
+            file=sys.stderr,
+        )
+
+    wireguard = defaults.wireguard
+    if "wireguard" in data and isinstance(data["wireguard"], dict):
+        wireguard = _merge_wireguard(defaults.wireguard, data["wireguard"])
 
     return TunnelConfig(
-        proxy=proxy,
+        wireguard=wireguard,
         default_agent=data.get("default_agent", defaults.default_agent),
         mount_ssh=data.get("mount_ssh", defaults.mount_ssh),
         mount_claude=data.get("mount_claude", defaults.mount_claude),
@@ -58,11 +64,8 @@ def save_config(config: TunnelConfig, path: Path | None = None) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
 
     data: dict[str, Any] = {
-        "proxy": {
-            "host": config.proxy.host,
-            "port": config.proxy.port,
-            "domains": config.proxy.domains,
-            "proxy_ips": config.proxy.proxy_ips,
+        "wireguard": {
+            "config_path": str(config.wireguard.config_path),
         },
         "default_agent": config.default_agent,
         "mount_ssh": config.mount_ssh,
