@@ -62,8 +62,12 @@ if [ -d "${home_dir}/.claude" ]; then
     fi
 fi
 
-# --- Step 4: Fix workspace permissions ---
-chown ${run_as_user}:${run_as_user} /workspace
+# --- Step 4: Match container user UID to workspace owner ---
+WORKSPACE_UID=$$(stat -c '%u' /workspace)
+if [ "$$WORKSPACE_UID" != "0" ] && [ "$$WORKSPACE_UID" != "$$(id -u ${run_as_user})" ]; then
+    usermod -u "$$WORKSPACE_UID" ${run_as_user} 2>/dev/null || true
+    chown -R "$$WORKSPACE_UID" "${home_dir}" 2>/dev/null || true
+fi
 mkdir -p /workspace/.tmp
 chown ${run_as_user}:${run_as_user} /workspace/.tmp
 
