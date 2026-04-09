@@ -8,15 +8,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "isolated
 import yaml
 
 from tunnel_agent.core.config import load_config, save_config
-from tunnel_agent.core.models import ProxyConfig, TunnelConfig
+from tunnel_agent.core.models import WireGuardConfig, TunnelConfig
 
 
 class TestLoadConfig:
     def test_returns_defaults_when_no_file(self, tmp_path):
         config = load_config(tmp_path / "nonexistent.yaml")
         assert config.default_agent == "claude"
-        assert config.proxy.port == 1080
-        assert len(config.proxy.domains) == 3
+        assert config.wireguard.config_path == Path.home() / ".tunnel-agent" / "wg0.conf"
 
     def test_returns_defaults_for_empty_file(self, tmp_path):
         config_file = tmp_path / "config.yaml"
@@ -24,36 +23,21 @@ class TestLoadConfig:
         config = load_config(config_file)
         assert config.default_agent == "claude"
 
-    def test_partial_config_merges_over_defaults(self, tmp_path):
+    def test_partial_merge_with_config_path(self, tmp_path):
+        custom_path = "/tmp/custom.conf"
         config_file = tmp_path / "config.yaml"
-        config_file.write_text(yaml.safe_dump({"proxy": {"port": 9090}}))
+        config_file.write_text(yaml.safe_dump({"wireguard": {"config_path": custom_path}}))
         config = load_config(config_file)
-        assert config.proxy.port == 9090
-        assert config.proxy.host == "host.docker.internal"
-        assert len(config.proxy.domains) == 3
+        assert config.wireguard.config_path == Path(custom_path)
+        assert config.default_agent == "claude"
 
-    def test_full_config_override(self, tmp_path):
-        data = {
-            "proxy": {
-                "host": "myhost",
-                "port": 2080,
-                "domains": ["custom.api.com"],
-                "proxy_ips": {"custom.api.com": ["10.0.0.1"]},
-            },
-            "default_agent": "codex",
-            "mount_ssh": False,
-            "mount_claude": False,
-            "extra_mounts": {"/host/data": "/container/data"},
-        }
+    def test_old_proxy_key_does_not_crash(self, tmp_path, capsys):
         config_file = tmp_path / "config.yaml"
-        config_file.write_text(yaml.safe_dump(data))
+        config_file.write_text(yaml.safe_dump({"proxy": {"host": "oldhost", "port": 1080}}))
         config = load_config(config_file)
-        assert config.proxy.host == "myhost"
-        assert config.proxy.port == 2080
-        assert config.proxy.domains == ["custom.api.com"]
-        assert config.default_agent == "codex"
-        assert config.mount_ssh is False
-        assert config.extra_mounts == {"/host/data": "/container/data"}
+        assert config.default_agent == "claude"
+        captured = capsys.readouterr()
+        assert "deprecated" in captured.err
 
     def test_invalid_yaml_returns_defaults(self, tmp_path):
         config_file = tmp_path / "config.yaml"
@@ -68,16 +52,16 @@ class TestSaveConfig:
         save_config(TunnelConfig(), config_file)
         assert config_file.exists()
 
-    def test_roundtrip(self, tmp_path):
+    def test_roundtrip_with_wireguard_config(self, tmp_path):
         config_file = tmp_path / "config.yaml"
+        custom_path = tmp_path / "wg0.conf"
         original = TunnelConfig(
-            proxy=ProxyConfig(port=9999, domains=["test.com"]),
+            wireguard=WireGuardConfig(config_path=custom_path),
             default_agent="aider",
             mount_ssh=False,
         )
         save_config(original, config_file)
         loaded = load_config(config_file)
-        assert loaded.proxy.port == 9999
-        assert loaded.proxy.domains == ["test.com"]
+        assert loaded.wireguard.config_path == custom_path
         assert loaded.default_agent == "aider"
         assert loaded.mount_ssh is False

@@ -5,34 +5,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "isolated-agent" / "src"))
 
-from tunnel_agent.core.models import ProxyConfig, TunnelConfig, TunnelSandbox
+from tunnel_agent.core.models import WireGuardConfig, TunnelConfig, TunnelSandbox
 
 
-class TestProxyConfig:
-    def test_defaults(self):
-        config = ProxyConfig()
-        assert config.host == "host.docker.internal"
-        assert config.port == 1080
-        assert "api.anthropic.com" in config.domains
-        assert "api.openai.com" in config.domains
-        assert "generativelanguage.googleapis.com" in config.domains
-        assert config.proxy_ips == {}
+class TestWireGuardConfig:
+    def test_default_path(self):
+        config = WireGuardConfig()
+        assert config.config_path == Path.home() / ".tunnel-agent" / "wg0.conf"
 
-    def test_custom_values(self):
-        config = ProxyConfig(host="localhost", port=8080, domains=["example.com"])
-        assert config.host == "localhost"
-        assert config.port == 8080
-        assert config.domains == ["example.com"]
-
-    def test_proxy_ips_override(self):
-        config = ProxyConfig(proxy_ips={"api.anthropic.com": ["1.2.3.4"]})
-        assert config.proxy_ips["api.anthropic.com"] == ["1.2.3.4"]
-
-    def test_domains_are_independent_instances(self):
-        c1 = ProxyConfig()
-        c2 = ProxyConfig()
-        c1.domains.append("extra.com")
-        assert "extra.com" not in c2.domains
+    def test_custom_path(self):
+        config = WireGuardConfig(config_path=Path("/etc/wireguard/custom.conf"))
+        assert config.config_path == Path("/etc/wireguard/custom.conf")
 
 
 class TestTunnelConfig:
@@ -42,12 +25,12 @@ class TestTunnelConfig:
         assert config.mount_ssh is True
         assert config.mount_claude is True
         assert config.extra_mounts == {}
-        assert isinstance(config.proxy, ProxyConfig)
+        assert isinstance(config.wireguard, WireGuardConfig)
 
-    def test_custom_proxy(self):
-        proxy = ProxyConfig(port=9090)
-        config = TunnelConfig(proxy=proxy)
-        assert config.proxy.port == 9090
+    def test_custom_wireguard(self):
+        wg = WireGuardConfig(config_path=Path("/tmp/wg0.conf"))
+        config = TunnelConfig(wireguard=wg)
+        assert config.wireguard.config_path == Path("/tmp/wg0.conf")
 
     def test_disable_mounts(self):
         config = TunnelConfig(mount_ssh=False, mount_claude=False)
