@@ -66,10 +66,25 @@ The default config path is `~/.tunnel-agent/wg0.conf`. You can override it with 
 
 ## Installation
 
+tunnel-agent depends on [isolated-agent](https://github.com/amphoreus/isolated-agent) for its agent adapters. Both repos must be present side by side:
+
+```
+amphoreus-ai/
+├── isolated-agent/   # Agent adapters (Claude, Codex, Aider, etc.)
+└── tunnel-agent/     # This package
+```
+
 On the China server:
 
 ```bash
-cd amphoreus-ai
+# Clone both repos (or scp from your Mac)
+git clone <your-repo>/isolated-agent.git ~/amphoreus-ai/isolated-agent
+git clone <your-repo>/tunnel-agent.git ~/amphoreus-ai/tunnel-agent
+
+# Create a virtualenv and install both
+cd ~/amphoreus-ai
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e ./isolated-agent
 pip install -e ./tunnel-agent
 ```
