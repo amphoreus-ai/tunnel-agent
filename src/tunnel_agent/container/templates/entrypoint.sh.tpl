@@ -62,7 +62,12 @@ if [ -d "${home_dir}/.claude" ]; then
     fi
 fi
 
-# --- Step 4: Fix SSH key permissions ---
+# --- Step 4: Fix workspace permissions ---
+chown ${run_as_user}:${run_as_user} /workspace
+mkdir -p /workspace/.tmp
+chown ${run_as_user}:${run_as_user} /workspace/.tmp
+
+# --- Step 5: Fix SSH key permissions ---
 
 if [ -d "${home_dir}/.ssh-mount" ]; then
     cp -r "${home_dir}/.ssh-mount" "${home_dir}/.ssh"
@@ -71,14 +76,14 @@ if [ -d "${home_dir}/.ssh-mount" ]; then
     chown -R ${run_as_user}:${run_as_user} "${home_dir}/.ssh"
 fi
 
-# --- Step 5: Source environment variables from .env ---
+# --- Step 6: Source environment variables from .env ---
 if [ -f /app/.env ]; then
     set -a
     . /app/.env
     set +a
 fi
 
-# --- Step 6: Launch agent as non-root ---
+# --- Step 7: Launch agent as non-root ---
 if [ $$# -eq 0 ]; then
     exec gosu ${run_as_user} sleep infinity
 else
