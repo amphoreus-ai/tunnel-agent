@@ -68,7 +68,7 @@ class TunnelBackend(Backend):
                 env_file=env_file,
             )
 
-            self._docker_compose(build_dir, "build", project_name)
+            self._docker_compose(build_dir, "build", project_name, stream=True)
             self._docker_compose(build_dir, "up", project_name, "-d", "--wait")
         except Exception:
             try:
@@ -200,8 +200,13 @@ class TunnelBackend(Backend):
         command: str,
         project_name: str,
         *args: str,
+        stream: bool = False,
     ) -> subprocess.CompletedProcess[str]:
-        """Run a docker compose command."""
+        """Run a docker compose command.
+
+        If stream=True, output is printed to the terminal in real time
+        (useful for builds so the user can see progress).
+        """
         cmd = [
             "docker",
             "compose",
@@ -214,12 +219,24 @@ class TunnelBackend(Backend):
 
         logger.debug("Running: %s", " ".join(cmd))
 
+        if stream:
+            result = subprocess.run(
+                cmd,
+                cwd=str(build_dir),
+                timeout=900,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"docker compose {command} failed (exit {result.returncode})"
+                )
+            return result
+
         result = subprocess.run(
             cmd,
             cwd=str(build_dir),
             capture_output=True,
             text=True,
-            timeout=300,
+            timeout=900,
         )
 
         if result.returncode != 0:
