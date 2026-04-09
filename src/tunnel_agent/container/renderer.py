@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+import shutil
+import subprocess
 from pathlib import Path
 from string import Template
 from typing import TYPE_CHECKING
@@ -84,6 +86,24 @@ def render_templates(
         env_lines = [f"{k}={v}" for k, v in shim.env_vars.items()]
         env_str = "ENV " + " \\\n    ".join(env_lines)
 
+    # --- GPU detection ---
+    gpu_config = ""
+    if shutil.which("nvidia-smi"):
+        try:
+            subprocess.run(["nvidia-smi"], capture_output=True, check=True, timeout=5)
+            gpu_config = (
+                "deploy:\n"
+                "      resources:\n"
+                "        reservations:\n"
+                "          devices:\n"
+                "            - driver: nvidia\n"
+                "              count: all\n"
+                "              capabilities: [gpu]"
+            )
+            logger.info("NVIDIA GPU detected — enabling GPU passthrough")
+        except Exception:
+            pass
+
     # --- Template context ---
     context: dict[str, str] = {
         # Project
@@ -102,6 +122,8 @@ def render_templates(
         "ssh_mount": ssh_mount,
         "claude_mount": claude_mount,
         "extra_mounts": extra_mounts,
+        # GPU
+        "gpu_config": gpu_config,
     }
 
     logger.debug("Rendering templates with context keys: %s", list(context.keys()))

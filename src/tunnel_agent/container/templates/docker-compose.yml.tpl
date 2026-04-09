@@ -18,3 +18,4 @@ services:
     working_dir: /workspace
     stdin_open: true
     tty: true
+    ${gpu_config}
