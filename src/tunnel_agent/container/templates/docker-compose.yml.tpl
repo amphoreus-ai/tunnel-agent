@@ -13,6 +13,7 @@ services:
       - ${env_file}:/app/.env:ro
       ${ssh_mount}
       ${claude_mount}
+      ${extra_mounts}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     working_dir: /workspace
