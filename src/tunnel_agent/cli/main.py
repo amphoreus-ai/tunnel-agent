@@ -311,6 +311,63 @@ def config_cmd(wg_config: str | None, default_agent: str | None) -> None:
     )
 
 
+@cli.command("build")
+@click.option("--agent", "-a", default=None, help="Agent to build for (default: from config)")
+@click.option("--wg-config", default=None, type=click.Path(), help="Path to WireGuard .conf file")
+def build_cmd(agent: str | None, wg_config: str | None) -> None:
+    """Pre-build the Docker image (downloads packages, installs agent CLI).
+
+    Run this once after setup to cache the image. Subsequent runs will be fast.
+    """
+    config = load_config()
+    agent_name = agent or config.default_agent
+
+    if wg_config is not None:
+        config.wireguard.config_path = Path(wg_config)
+
+    try:
+        agent_instance = _get_agent(agent_name)
+    except click.BadParameter as exc:
+        console.print(Panel(str(exc), title="[bold red]Error[/bold red]", border_style="red"))
+        sys.exit(1)
+
+    try:
+        backend = TunnelBackend(config=config)
+    except DockerNotFoundError as exc:
+        console.print(Panel(str(exc), title="[bold red]Docker Error[/bold red]", border_style="red"))
+        sys.exit(1)
+
+    console.print(f"[bold]Building image for agent:[/bold] {agent_name}")
+    console.print(f"[bold]WireGuard config:[/bold] {config.wireguard.config_path}")
+    console.print()
+
+    import tempfile
+    import shutil
+    from tunnel_agent.container.renderer import render_templates
+
+    build_dir = Path(tempfile.mkdtemp(prefix="tunnel-agent-build-"))
+    try:
+        render_templates(
+            build_dir=build_dir,
+            agent=agent_instance,
+            config=config,
+            workspace_path=Path.cwd(),
+        )
+        # Stream build output so user sees progress
+        backend._docker_compose(build_dir, "build", "tunnel-build", stream=True)
+        console.print(Panel(
+            "[green]Image built successfully.[/green]\n"
+            "Subsequent `tunnel-agent run` will start instantly.",
+            title="[bold green]Build complete[/bold green]",
+            border_style="green",
+        ))
+    except Exception as exc:
+        console.print(Panel(str(exc), title="[bold red]Build failed[/bold red]", border_style="red"))
+        sys.exit(1)
+    finally:
+        shutil.rmtree(build_dir, ignore_errors=True)
+
+
 def main() -> None:
     cli()
 
