@@ -5,6 +5,7 @@ import importlib
 import logging
 import subprocess
 import sys
+from pathlib import Path
 
 import click
 from rich.console import Console
@@ -53,10 +54,10 @@ def _get_agent(name: str) -> Agent:
 
 
 @click.group(invoke_without_command=True)
-@click.version_option(version="0.1.0", prog_name="tunnel-agent")
+@click.version_option(version="0.2.0", prog_name="tunnel-agent")
 @click.pass_context
 def cli(ctx: click.Context) -> None:
-    """Run AI coding agents with selective proxy routing."""
+    """Run AI coding agents through a WireGuard VPN tunnel."""
     if ctx.invoked_subcommand is None:
         click.echo(ctx.get_help())
 
@@ -65,21 +66,13 @@ def cli(ctx: click.Context) -> None:
 @click.argument("task", required=False, default=None)
 @click.option("--agent", "-a", default=None, help="Agent to use (default: from config)")
 @click.option("--workspace", "-w", default=".", help="Workspace directory (default: current dir)")
-@click.option("--proxy-port", default=None, type=int, help="Override SOCKS5 proxy port")
-@click.option("--proxy-host", default=None, help="Override SOCKS5 proxy host")
-@click.option(
-    "--domains",
-    default=None,
-    help="Additional domains to route through proxy (comma-separated)",
-)
+@click.option("--wg-config", default=None, type=click.Path(), help="Override WireGuard config file path")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 def run(
     task: str | None,
     agent: str | None,
     workspace: str,
-    proxy_port: int | None,
-    proxy_host: str | None,
-    domains: str | None,
+    wg_config: str | None,
     verbose: bool,
 ) -> None:
     """Run an agent in a tunnel container.
@@ -95,14 +88,8 @@ def run(
 
     agent_name = agent or config.default_agent
 
-    if proxy_port is not None:
-        config.proxy.port = proxy_port
-    if proxy_host is not None:
-        config.proxy.host = proxy_host
-
-    if domains:
-        extra_domains = [d.strip() for d in domains.split(",") if d.strip()]
-        config.proxy.domains = list(dict.fromkeys(config.proxy.domains + extra_domains))
+    if wg_config is not None:
+        config.wireguard.config_path = Path(wg_config)
 
     try:
         agent_instance = _get_agent(agent_name)
@@ -122,11 +109,10 @@ def run(
         sys.exit(1)
 
     mode = "interactive" if task is None else "task"
-    proxy_summary = f"{config.proxy.host}:{config.proxy.port}"
     info_lines = (
         f"[bold]Agent:[/bold] {agent_name}\n"
         f"[bold]Workspace:[/bold] {workspace}\n"
-        f"[bold]Proxy:[/bold] {proxy_summary}\n"
+        f"[bold]WireGuard:[/bold] {config.wireguard.config_path}\n"
         f"[bold]Mode:[/bold] {mode}"
     )
     if task:
@@ -192,8 +178,8 @@ def _run_interactive(agent: Agent, backend: TunnelBackend, workspace: str) -> No
         if not backend.healthcheck(sandbox):
             console.print(
                 Panel(
-                    "Proxy healthcheck failed. Check that Astrill is running and "
-                    "its SOCKS5 proxy is bound to 0.0.0.0.",
+                    "WireGuard healthcheck failed. Check that wg0.conf is valid "
+                    "and the VPS endpoint is reachable.",
                     title="[bold red]Healthcheck Failed[/bold red]",
                     border_style="red",
                 )
@@ -270,19 +256,16 @@ def list_agents() -> None:
 
 
 @cli.command("config")
-@click.option("--proxy-port", default=None, type=int, help="Set SOCKS5 proxy port")
-@click.option("--proxy-host", default=None, help="Set SOCKS5 proxy host")
+@click.option("--wg-config", default=None, type=click.Path(), help="Set WireGuard config file path")
 @click.option("--default-agent", default=None, help="Set default agent name")
-def config_cmd(proxy_port: int | None, proxy_host: str | None, default_agent: str | None) -> None:
+def config_cmd(wg_config: str | None, default_agent: str | None) -> None:
     """Update the tunnel-agent config file."""
-    if proxy_port is None and proxy_host is None and default_agent is None:
+    if wg_config is None and default_agent is None:
         current = load_config()
         console.print(
             Panel(
                 f"[bold]Config file:[/bold] {CONFIG_FILE}\n"
-                f"[bold]Proxy host:[/bold] {current.proxy.host}\n"
-                f"[bold]Proxy port:[/bold] {current.proxy.port}\n"
-                f"[bold]Proxy domains:[/bold] {', '.join(current.proxy.domains)}\n"
+                f"[bold]WireGuard:[/bold] {current.wireguard.config_path}\n"
                 f"[bold]Default agent:[/bold] {current.default_agent}\n"
                 f"[bold]Mount SSH:[/bold] {current.mount_ssh}\n"
                 f"[bold]Mount ~/.claude:[/bold] {current.mount_claude}",
@@ -307,19 +290,14 @@ def config_cmd(proxy_port: int | None, proxy_host: str | None, default_agent: st
             sys.exit(1)
         config.default_agent = default_agent
 
-    if proxy_port is not None:
-        config.proxy.port = proxy_port
-
-    if proxy_host is not None:
-        config.proxy.host = proxy_host
+    if wg_config is not None:
+        config.wireguard.config_path = Path(wg_config)
 
     save_config(config)
 
     changed: list[str] = []
-    if proxy_port is not None:
-        changed.append(f"proxy port → {proxy_port}")
-    if proxy_host is not None:
-        changed.append(f"proxy host → {proxy_host}")
+    if wg_config is not None:
+        changed.append(f"WireGuard config → {wg_config}")
     if default_agent is not None:
         changed.append(f"default agent → {default_agent}")
 
